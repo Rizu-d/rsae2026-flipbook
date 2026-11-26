@@ -1,0 +1,1303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>RSAE 2026 Conference Proceedings – Flipbook</title>
+  <style>
+    /* =====================================================
+       Flipbook styles (combined from style.css)
+       ===================================================== */
+
+    :root {
+      --bg-1: #12295a;
+      --bg-2: #050b1b;
+      --ink: #eaf0ff;
+      --muted: #9fb2d8;
+      --accent: #f4b942;
+      --glass: rgba(255, 255, 255, .07);
+      --glass-line: rgba(255, 255, 255, .13);
+      --paper: #f8f6f0;
+
+      --bar-h: 58px;
+      --ctl-h: 74px;
+
+      --dur: 800ms;                          /* page-turn time (set by script) */
+      --ease: cubic-bezier(.5, .05, .25, 1);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html, body { height: 100%; margin: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--ink);
+      background: radial-gradient(ellipse at 50% 28%, var(--bg-1) 0%, var(--bg-2) 78%) fixed;
+      overflow: hidden;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .app {
+      --side-w: 0px;
+      display: grid;
+      grid-template-columns: var(--side-w) minmax(0, 1fr);
+      grid-template-rows: var(--bar-h) minmax(0, 1fr) var(--ctl-h);
+      grid-template-areas:
+        "top  top"
+        "side stage"
+        "side ctl";
+      height: 100%;
+      height: 100dvh;
+    }
+
+    .app.side-open { --side-w: 268px; }
+
+    .topbar { grid-area: top; }
+    .stage-wrap { grid-area: stage; position: relative; display: flex; min-width: 0; min-height: 0; }
+    .controls { grid-area: ctl; min-width: 0; }
+
+    /* prev / next arrows on the sides of the book */
+    .side-arrow {
+      position: absolute;
+      top: 50%;
+      z-index: 20;
+      display: grid;
+      place-items: center;
+      width: 44px;
+      height: 44px;
+      margin-top: -22px;
+      padding: 0;
+      border: 1px solid var(--glass-line);
+      border-radius: 50%;
+      background: rgba(5, 11, 27, .6);
+      color: var(--ink);
+      cursor: pointer;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      transition: background .15s, opacity .2s;
+    }
+    .side-arrow.left  { left: 10px; }
+    .side-arrow.right { right: 10px; }
+    .side-arrow svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    .side-arrow:hover:not(:disabled) { background: rgba(244, 185, 66, .9); color: #111; }
+    .side-arrow:disabled { opacity: 0; pointer-events: none; }
+    .side-arrow:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    /* ---------- Top bar ---------- */
+
+    .topbar {
+      display: flex;
+      min-width: 0;
+      overflow: hidden;
+      align-items: center;
+      gap: 6px;
+      padding: 0 12px;
+      background: rgba(5, 11, 27, .55);
+      border-bottom: 1px solid var(--glass-line);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      z-index: 60;
+    }
+
+    .title {
+      margin-left: 6px;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 1.08rem;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+
+    .title small {
+      display: block;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      font-size: .7rem;
+      letter-spacing: .02em;
+      color: var(--muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .spacer { flex: 1 1 0; min-width: 0; }
+
+    .zoom-label {
+      min-width: 3.2em;
+      text-align: center;
+      font-size: .78rem;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ---------- Buttons ---------- */
+
+    .icon-btn {
+      flex: none;
+      display: grid;
+      place-items: center;
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      border: 0;
+      border-radius: 50%;
+      background: transparent;
+      color: var(--ink);
+      cursor: pointer;
+      transition: background .15s, color .15s, opacity .15s;
+    }
+
+    .icon-btn svg {
+      width: 22px;
+      height: 22px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .icon-btn:hover:not(:disabled) { background: var(--glass-line); }
+    .icon-btn:disabled { opacity: .3; cursor: default; }
+    .icon-btn:focus-visible,
+    .slider:focus-visible,
+    .thumb:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    /* ---------- Stage (scrolls when zoomed) ---------- */
+
+    .stage {
+      position: relative;
+      flex: 1 1 auto;
+      min-width: 0;
+      display: flex;
+      overflow: auto;
+      padding: 18px;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: pan-y pinch-zoom;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, .25) transparent;
+    }
+
+    .stage.zoomed { touch-action: auto; }
+
+    .sizer {
+      position: relative;
+      flex: none;
+      margin: auto;            /* centres the book, and keeps it scrollable when zoomed */
+    }
+
+    .book {
+      position: absolute;
+      inset: 0;
+      cursor: pointer;
+      transition: transform var(--dur) var(--ease);
+    }
+
+    .stage.zoomed .book { cursor: grab; }
+    .stage.panning .book { cursor: grabbing; }
+
+    /* white "paper block" under the pages: gives the book its drop shadow */
+
+    .block {
+      position: absolute;
+      top: 0;
+      height: 100%;
+      background: var(--paper);
+      box-shadow: 0 22px 55px rgba(0, 0, 0, .55), 0 4px 14px rgba(0, 0, 0, .35);
+      transition: opacity var(--dur) var(--ease);
+      z-index: 0;
+    }
+
+    .block-left  { left: 0;   width: 50%; border-radius: 3px 0 0 3px; }
+    .block-right { left: 50%; width: 50%; border-radius: 0 3px 3px 0; }
+
+    .book.single .block-right { left: 0; width: 100%; border-radius: 3px; }
+    .book.single .block-left  { display: none; }
+
+    /* ---------- Page leaves (3D) ---------- */
+
+    .leaf {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      width: 50%;
+      height: 100%;
+      transform-origin: left center;
+      transform-style: preserve-3d;
+      transition: transform var(--dur) var(--ease);
+      will-change: transform;
+    }
+
+    .leaf.flipped { transform: rotateY(-180deg); }
+
+    .book.single .leaf { left: 0; width: 100%; }
+
+    .face {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      background: var(--paper);
+      -webkit-backface-visibility: hidden;
+      backface-visibility: hidden;
+    }
+
+    .face.back { transform: rotateY(180deg); }
+
+    .face img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: fill;
+      pointer-events: none;
+      -webkit-user-drag: none;
+    }
+
+    /* soft shading near the spine so it looks like a bound book */
+
+    .face::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .face.front::after { background: linear-gradient(to right, rgba(0, 0, 0, .22), rgba(0, 0, 0, 0) 7%); }
+    .face.back::after  { background: linear-gradient(to left,  rgba(0, 0, 0, .22), rgba(0, 0, 0, 0) 7%); }
+
+    /* single-page mode has no spine in the middle, so use a lighter edge */
+    .book.single .face.front::after { background: linear-gradient(to right, rgba(0, 0, 0, .12), rgba(0, 0, 0, 0) 4%); }
+
+    .book.no-anim,
+    .book.no-anim .leaf,
+    .book.no-anim .block { transition: none !important; }
+
+    /* ---------- Bottom controls ---------- */
+
+    .controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 14px calc(10px + env(safe-area-inset-bottom, 0px));
+    }
+
+    .pill {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: min(760px, 100%);
+      padding: 7px 12px;
+      background: var(--glass);
+      border: 1px solid var(--glass-line);
+      border-radius: 999px;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+
+    .pager {
+      flex: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: .9rem;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .pager input {
+      width: 4.4em;
+      padding: 6px 4px;
+      text-align: center;
+      font: inherit;
+      color: var(--ink);
+      background: rgba(0, 0, 0, .3);
+      border: 1px solid var(--glass-line);
+      border-radius: 8px;
+    }
+
+    .pager input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+    /* range slider */
+
+    .slider {
+      --p: 0%;
+      flex: 1;
+      min-width: 60px;
+      height: 24px;
+      margin: 0;
+      background: transparent;
+      cursor: pointer;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    .slider::-webkit-slider-runnable-track {
+      height: 6px;
+      border-radius: 99px;
+      background: linear-gradient(to right, var(--accent) var(--p), rgba(255, 255, 255, .2) var(--p));
+    }
+
+    .slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      box-sizing: border-box;
+      width: 18px;
+      height: 18px;
+      margin-top: -6px;
+      border-radius: 50%;
+      background: #fff;
+      border: 4px solid var(--accent);
+    }
+
+    .slider::-moz-range-track {
+      height: 6px;
+      border-radius: 99px;
+      background: rgba(255, 255, 255, .2);
+    }
+
+    .slider::-moz-range-progress {
+      height: 6px;
+      border-radius: 99px;
+      background: var(--accent);
+    }
+
+    .slider::-moz-range-thumb {
+      box-sizing: border-box;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #fff;
+      border: 4px solid var(--accent);
+    }
+
+    /* ---------- Left page navigator ---------- */
+
+    .panel {
+      grid-area: side;
+      min-width: 0;
+      padding: 0;
+      overflow-x: hidden;
+      overflow-y: auto;
+      background: rgba(8, 17, 40, .92);
+      border-right: 1px solid var(--glass-line);
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, .25) transparent;
+      overscroll-behavior: contain;
+    }
+
+    .app:not(.side-open) .panel { visibility: hidden; border-right-width: 0; }
+
+    .panel-head {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      padding: 10px 12px;
+      background: rgba(8, 17, 40, .97);
+      border-bottom: 1px solid var(--glass-line);
+    }
+
+    .tabs { display: flex; gap: 4px; padding: 3px; border-radius: 999px; background: rgba(0, 0, 0, .3); }
+
+    .tab {
+      flex: 1;
+      padding: 7px 10px;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--muted);
+      font: inherit;
+      font-size: .82rem;
+      cursor: pointer;
+      transition: background .15s, color .15s;
+    }
+    .tab:hover { color: var(--ink); }
+    .tab.active { background: var(--accent); color: #1a1405; font-weight: 600; }
+    .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    .thumbs[hidden], .toc[hidden] { display: none; }
+
+    /* ---------- Table of contents ---------- */
+
+    .toc { width: 268px; padding: 8px 8px 28px; }
+    .toc ul { margin: 0; padding: 0; list-style: none; }
+    .toc li > ul { display: none; }
+    .toc li.open > ul { display: block; }
+
+    .toc-row { display: flex; align-items: stretch; border-radius: 8px; }
+    .toc-row:hover { background: var(--glass); }
+
+    .toc-toggle, .toc-gap { flex: none; width: 28px; }
+
+    .toc-toggle {
+      display: grid;
+      place-items: center;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .toc-toggle svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; transition: transform .15s; }
+    li.open > .toc-row .toc-toggle svg { transform: rotate(90deg); }
+
+    .toc-link {
+      flex: 1;
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      min-width: 0;
+      padding: 9px 8px 9px 2px;
+      border: 0;
+      background: transparent;
+      color: var(--ink);
+      font: inherit;
+      font-size: .88rem;
+      line-height: 1.3;
+      text-align: left;
+      cursor: pointer;
+    }
+    .toc-link .t { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+    .toc-link .n { flex: none; font-size: .78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+    .toc ul ul .toc-row { margin-left: 14px; }
+    .toc ul ul .toc-link { font-size: .84rem; color: #cbd7f2; }
+
+    .toc-row.active { background: rgba(244, 185, 66, .14); }
+    .toc-row.active .toc-link, .toc-row.active .toc-link .n { color: var(--accent); }
+    .toc-link:focus-visible, .toc-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 8px; }
+
+
+    .thumbs {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 14px 24px;
+      width: 268px;
+    }
+
+    .thumb {
+      width: 100%;
+      padding: 6px;
+      border: 2px solid transparent;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--muted);
+      font: inherit;
+      font-size: .75rem;
+      cursor: pointer;
+    }
+
+    .thumb img {
+      display: block;
+      width: 100%;
+      aspect-ratio: 595.304 / 841.89;
+      margin-bottom: 5px;
+      border-radius: 2px;
+      background: var(--paper);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, .4);
+    }
+
+    .thumb:hover { background: var(--glass); }
+    .thumb.active { border-color: var(--accent); background: rgba(244, 185, 66, .1); color: var(--accent); }
+
+    .backdrop { display: none; }
+
+    /* ---------- Small screens ---------- */
+
+    /* phones & tablets: navigator becomes a slide-in drawer */
+    @media (max-width: 899px) {
+      .app, .app.side-open { --side-w: 0px; }
+      .panel {
+        position: fixed;
+        top: var(--bar-h);
+        bottom: 0;
+        left: 0;
+        z-index: 70;
+        width: min(300px, 84vw);
+        visibility: visible !important;
+        border-right-width: 1px !important;
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        transform: translateX(-104%);
+        transition: transform .28s ease;
+      }
+      .app.side-open .panel { transform: none; }
+      .toc { width: 100%; }
+      .thumbs { width: 100%; display: grid; grid-template-columns: repeat(2, 1fr); align-items: start; }
+      .app.side-open .backdrop {
+        display: block;
+        position: fixed;
+        inset: var(--bar-h) 0 0 0;
+        z-index: 65;
+        background: rgba(0, 0, 0, .5);
+      }
+    }
+
+    @media (max-width: 640px) {
+      .side-arrow { display: none; }
+      :root { --bar-h: 52px; --ctl-h: 68px; }
+      .stage { padding: 10px; }
+      .title { font-size: .95rem; }
+      .title small { display: none; }
+      .zoom-label { display: none; }
+      .pill { gap: 6px; padding: 6px 8px; }
+      .pager input { width: 3.8em; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .panel { transition: none !important; }
+    }
+
+    @media (max-width: 420px) {
+      .topbar { gap: 2px; padding: 0 6px; }
+      .icon-btn { width: 38px; height: 38px; }
+      #btnFull { display: none; }
+      .pager input { width: 3.4em; }
+      .pager { font-size: .82rem; }
+    }
+
+    /* download button specific styling */
+    #btnDownload {
+      position: relative;
+    }
+    #btnDownload .download-tooltip {
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      margin-top: 6px;
+      padding: 4px 8px;
+      background: rgba(0,0,0,.8);
+      color: #fff;
+      font-size: .7rem;
+      white-space: nowrap;
+      border-radius: 4px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity .15s;
+    }
+    #btnDownload:hover .download-tooltip { opacity: 1; }
+  </style>
+</head>
+<body>
+  <div class="app">
+
+    <!-- ===== Top bar ===== -->
+    <header class="topbar">
+      <button class="icon-btn" id="btnPanel" type="button" aria-label="Toggle page navigator" title="Pages">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+
+      <div class="title">
+        RSAE 2026 Conference Proceedings
+        <small>Research Symposium on Assessment and Evaluation · Department of Examinations, Sri Lanka</small>
+      </div>
+
+      <div class="spacer"></div>
+
+      <button class="icon-btn" id="btnView" type="button" aria-label="Switch single / double page view" title="Single / double page">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 4h7a3 3 0 0 1 3 3v13a2 2 0 0 0-2-2H2zM22 4h-7a3 3 0 0 0-3 3v13a2 2 0 0 1 2-2h8z"/></svg>
+      </button>
+      <button class="icon-btn" id="btnZoomOut" type="button" aria-label="Zoom out" title="Zoom out">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35M8 11h6"/></svg>
+      </button>
+      <span class="zoom-label" id="zoomLabel">100%</span>
+      <button class="icon-btn" id="btnZoomIn" type="button" aria-label="Zoom in" title="Zoom in">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35M8 11h6M11 8v6"/></svg>
+      </button>
+      <button class="icon-btn" id="btnFull" type="button" aria-label="Full screen" title="Full screen">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+      </button>
+
+      <!-- Download PDF button -->
+      <button class="icon-btn" id="btnDownload" type="button" aria-label="Download book as PDF" title="Download PDF">
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        <span class="download-tooltip">Download PDF</span>
+      </button>
+    </header>
+
+    <!-- ===== Left page navigator (docked on desktop, drawer on phones) ===== -->
+    <aside class="panel" id="panel" aria-label="Page navigator">
+      <div class="panel-head">
+        <div class="tabs" role="tablist">
+          <button class="tab active" id="tabToc" type="button" role="tab" aria-selected="true">Contents</button>
+          <button class="tab" id="tabPages" type="button" role="tab" aria-selected="false">Pages</button>
+        </div>
+      </div>
+      <nav class="toc" id="toc" aria-label="Table of contents"></nav>
+      <div class="thumbs" id="thumbs" hidden></div>
+    </aside>
+    <div class="backdrop" id="backdrop"></div>
+
+    <!-- ===== The book ===== -->
+    <div class="stage-wrap">
+    <button class="side-arrow left" id="btnPrevSide" type="button" aria-label="Previous page">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <button class="side-arrow right" id="btnNextSide" type="button" aria-label="Next page">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+    </button>
+    <main class="stage" id="stage">
+      <div class="sizer" id="sizer">
+        <div class="book" id="book">
+          <div class="block block-left" id="blockLeft"></div>
+          <div class="block block-right" id="blockRight"></div>
+          <!-- page leaves are created by script -->
+        </div>
+      </div>
+    </main>
+    </div>
+
+    <!-- ===== Bottom controls ===== -->
+    <footer class="controls">
+      <div class="pill">
+        <button class="icon-btn" id="btnPrev" type="button" aria-label="Previous page" title="Previous (←)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+
+        <input class="slider" id="slider" type="range" min="1" max="212" value="1" aria-label="Go to page">
+
+        <label class="pager">
+          <input id="pageInput" type="text" inputmode="numeric" autocomplete="off" aria-label="Page number" value="1">
+          <span>/ <span id="total">212</span></span>
+        </label>
+
+        <button class="icon-btn" id="btnNext" type="button" aria-label="Next page" title="Next (→)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
+      </div>
+    </footer>
+
+
+
+  </div>
+
+  <noscript><p style="position:fixed;inset:0;display:grid;place-items:center;color:#fff;background:#050b1b">Please enable JavaScript to view the flipbook.</p></noscript>
+  <script>
+    /* =====================================================
+       Flipbook – plain JavaScript, no libraries needed.
+       Works offline: just open RSAE2026book.html in a browser.
+       Combined with download PDF button.
+       ===================================================== */
+    (() => {
+      'use strict';
+
+      /* ---------- Settings (change these if you reuse this for another book) ---------- */
+      const TOTAL     = 212;                 // number of page images in /pages
+      const AR        = 595.304 / 841.89;     // page width / page height
+      const PAGE_DIR  = 'pages/';            // pages/001.jpg, 002.jpg ...
+      const THUMB_DIR = 'thumbs/';           // thumbs/001.jpg, 002.jpg ...
+      const ZOOMS     = [1, 1.25, 1.5, 2, 2.5, 3];
+
+      /* ---------- TABLE OF CONTENTS ----------
+         t = title shown in the menu, p = flipbook page number (the image number in /pages),
+         c = optional sub-topics (any depth). Keep pages in ascending order.
+         NOTE: p = flipbook page (image number in /pages). */
+      const TOC = [
+        { t: "Cover", p: 1 },
+        { t: "Title Page", p: 2 },
+        { t: "Copyright & Publisher", p: 3 },
+        { t: "Conference Team", p: 4 },
+        { t: "Editorial Board", p: 5 },
+        { t: "Panel of Reviewers", p: 6 },
+        { t: "Table of Contents", p: 7 },
+        { t: "Abstracts Index", p: 8 },
+        { t: "Messages", p: 11 },
+        { t: "Message from the Commissioner General of Examinations", p: 12 },
+        { t: "Message from the Conference Chair", p: 14 },
+        { t: "Message from the Editor-in-Chief", p: 16 },
+        { t: "Keynote Address", p: 18 },
+        { t: "Panel Discussion", p: 19 },
+        { t: "Assessment Policy, Systems and Quality", p: 21, c: [
+          { t: "Towards a Responsible Evaluation Framework for Digital and AI-Enabled Assessment in Sri Lanka: Contextualising the UNICEF EdTech for Good Framework", p: 22 },
+          { t: "Governing before Adoption: An ISO/IEC 42001-Aligned AI Readiness Framework for Sri Lanka’s National Examinations Authority", p: 29 },
+          { t: "Developing Critical Thinking Skills of Economics Students Through Active Learning Methods (සක්‍රීය ඉගෙනුම් ක්‍රම භාවිතය මගින් ආර්ථික විද්‍යා විෂයය හද්‍ාරන සිසුන්ගේ විචාරාත්මක චින්තන කුසලතා වර්ථධනය කිරීම)", p: 36 },
+          { t: "The Effect of Economic Factors on Literacy Rate of Low - and Middle - Income Countries", p: 44 }
+        ]},
+        { t: "Assessment Design, Development, Quality Assurance and Challenges", p: 55, c: [
+          { t: "Latent Academic Performance Classes and Common General Test Performance Across Sri Lankan GCE A/L Subject Streams", p: 56 },
+          { t: "Challenges Faced by Undergraduate Students Studying Western Music in Sri Lankan Universities: Issues and Possible Solutions", p: 66 },
+          { t: "Contemporary Trends in Student Assessment Methods and Challenges in Modernising Schools in the Kalmunai Education Zone", p: 73 }
+        ]},
+        { t: "Teaching, Learning and Curriculum", p: 80, c: [
+          { t: "Transitioning Toward a Tripartite Assessment Paradigm: Reframing ESL Evaluation Criteria in Secondary Education", p: 81 },
+          { t: "Different Types of Peer Group Strategies and Evidence of Their Effectiveness in a Sri Lankan ESL Classroom", p: 89 },
+          { t: "Flipped Classroom Approach and Digital Literacy Skills: A Study with Mathematics Teachers", p: 95 },
+          { t: "Teachers’ Perceptions of the Impact of the Examination-Oriented Assessment System on the Creative Thinking of Secondary School Students (ද්වීතීයික පාසල් සිසුන්ගේ නිර්ථමාණශීලී චින්තනය ගකගරහි විභාෙ ගේන්ීය ඇෙයීම් ක්‍රමය මගින් සිදු ගකගරන බලපෑම පිළිබඳ ගුරුවරුන්ගේ සංජානනය)", p: 102 },
+          { t: "G.C.E. (Advanced Level) General Information Technology Examination Evaluation System and Students’ Learning Engagement (க.ப ொ.த (உயர்தர) ப ொதுத் தகவல் பதொழில்நுட் ப் ரீட்சை மதிப் ீட்டு முசைசம மற்றும் மொணவர்களின் கற்ைல் ஈடு ொடு)", p: 111 },
+          { t: "From Traditional Assessment to Authentic Assessment in Education: Current Challenges and Possible Solutions (கல்வியியல் மதிப் ட் ீ டில் ொரம் ரிய முசைகளிலிருந்து உண்சமநிசல மதிப் ீட்சை (Authentic Assessment) நநொக்கிய மொற்ைம்: தற்ந ொசதய ைவொல்களும் தீர்வுகளும்)", p: 123 },
+          { t: "Language-related assessment challenges faced by Tamil-medium students in the Sri Lankan G.C.E. Advanced Level examination (இலங்சக க.ப ொ.த உயர்தரப் ரீட்சையில் தமிழ் பமொழிமூல மொணவர்கள் எதிர்பகொள்ளும் பமொழிைொர் மதிப் ட் ீ டுச் ைவொல்கள்)", p: 130 },
+          { t: "Examination anxiety and learner-centred assessment practices among secondary school students in Sri Lanka", p: 139 }
+        ]},
+        { t: "Equity and Innovation", p: 147, c: [
+          { t: "2025 සාමාන්‍ය පෙළ දත්ත ඇසුරින් ශ්‍රී ලංකාපේ ද්විතීයික අධ්‍යාෙනික සාධ්‍න්‍ ිෂමතා පිළිබඳ බහු-ිචලය සංඛ්‍යාන්‍මය අධ්‍යයන්‍යක් (A Multivariate Statistical Analysis of Disparities in Secondary Educational Achievement in Sri Lanka Based on the 2025 G.C.E. Ordinary Level Examination Data", p: 148 },
+          { t: "Education Zonal disparities in General Certificate of Education Ordinary Level to Advanced Level Qualification Rates in Sri Lanka from 2016 to 2025", p: 155 },
+          { t: "Changing Lives Through Support: From Struggling to Thriving with Accommodations in the Inclusive Classroom", p: 166 },
+          { t: "Challenges encountered by the Department of Examinations of Sri Lanka in implementing examination facilities for candidates with Special Needs in National Examinations: A Practice Policy Analysis (Njrpa guPl;irfspy; tpNrl NjitAila guPl;rhu;j;jpfSf;fhd guPl;ir trjpfis eilKiwg;gLj;Jtjpy; ,yq;ifg; guPl;irj; jpizf;fsk; vjpu;Nehf;Fk; rthy;fs;: eilKiwf; nfhs;iffs; gw;wpaNjhu; Ma;T)", p: 174 },
+          { t: "Teachers’ Use of AI in Assessment for Higher-Order Thinking Skills in Sri Lankan Schools", p: 180 },
+          { t: "Examination Accommodations for Government Examinations Among Children with Cochlear Implants: A Preliminary Case Series", p: 187 },
+          { t: "Patterns and Trends in Subject Combinations in the Sri Lankan GCE Advanced Level Examination: A Ten-Year Association Rule Analysis", p: 195 },
+          { t: "Extracurricular Activities and Students’ Performance Assessment (Extracurricular competency barriers on students’ performance in government schools)", p: 205 }
+        ]},
+        { t: "Back Cover", p: 212 }
+      ];
+
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const DUR = reduceMotion ? 1 : 800;    // page-turn time in ms
+      document.documentElement.style.setProperty('--dur', DUR + 'ms');
+
+      /* ---------- Elements ---------- */
+      const $ = (s) => document.querySelector(s);
+      const stage = $('#stage'), sizer = $('#sizer'), book = $('#book');
+      const blockLeft = $('#blockLeft'), blockRight = $('#blockRight');
+      const slider = $('#slider'), pageInput = $('#pageInput');
+      const btnPrev = $('#btnPrev'), btnNext = $('#btnNext');
+      const btnZoomIn = $('#btnZoomIn'), btnZoomOut = $('#btnZoomOut'), zoomLabel = $('#zoomLabel');
+      const btnFull = $('#btnFull'), btnView = $('#btnView'), btnPanel = $('#btnPanel');
+      const panel = $('#panel'), thumbs = $('#thumbs'), toc = $('#toc'),
+        tabToc = $('#tabToc'), tabPages = $('#tabPages'), app = $('.app'), backdrop = $('#backdrop');
+      const btnPrevSide = $('#btnPrevSide'), btnNextSide = $('#btnNextSide');
+      const btnDownload = $('#btnDownload');
+      const isMobile = () => window.innerWidth < 900;
+
+      $('#total').textContent = TOTAL;
+      slider.max = TOTAL;
+
+      /* ---------- State ---------- */
+      let single = false;          // true = one page at a time (phones / portrait)
+      let forced = null;           // 'single' | 'double' when the user picks a view
+      let zoomIndex = 0;
+      let zoom = 1;
+      let leaves = [];             // [{ el, loaded }]
+      let flipped = 0;             // how many leaves are turned to the left
+      let maxFlipped = 0;
+      let N = 0;                   // number of leaves
+      let lastFlip = 0;
+      let thumbsBuilt = false;
+      let tocRows = [];            // [{ page, row, li }] in reading order
+      let flipTimer = 0;
+      const animating = new Set();
+
+      const pad = (n) => String(n).padStart(3, '0');
+      const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+      const startPage = (() => {
+        const m = /#(\d+)/.exec(location.hash);
+        return m ? clamp(parseInt(m[1], 10), 1, TOTAL) : 1;
+      })();
+
+      /* ---------- Building the leaves ---------- */
+
+      function makeFace(side, page) {
+        const f = document.createElement('div');
+        f.className = 'face ' + side;
+        if (page) {
+          const img = document.createElement('img');
+          img.alt = 'Page ' + page;
+          img.draggable = false;
+          img.decoding = 'async';
+          img.dataset.src = PAGE_DIR + pad(page) + '.jpg';
+          f.appendChild(img);
+        }
+        return f;
+      }
+
+      function build() {
+        book.querySelectorAll('.leaf').forEach((n) => n.remove());
+        leaves = [];
+        animating.clear();
+
+        if (single) {
+          // every page is its own leaf; the leaf turns away to the left
+          N = TOTAL;
+          maxFlipped = TOTAL - 1;
+          for (let p = 1; p <= TOTAL; p++) leaves.push(makeLeaf(p, null));
+        } else {
+          // front = odd page, back = even page
+          N = Math.ceil(TOTAL / 2);
+          maxFlipped = N;
+          for (let i = 0; i < N; i++) {
+            const front = 2 * i + 1;
+            const back = 2 * i + 2 <= TOTAL ? 2 * i + 2 : null;
+            leaves.push(makeLeaf(front, back));
+          }
+        }
+        leaves.forEach((l) => book.appendChild(l.el));
+        book.classList.toggle('single', single);
+      }
+
+      function makeLeaf(front, back) {
+        const el = document.createElement('div');
+        el.className = 'leaf';
+        el.appendChild(makeFace('front', front));
+        el.appendChild(makeFace('back', back));
+        return { el, loaded: false };
+      }
+
+      /* ---------- State -> DOM ---------- */
+
+      function setZ() {
+        leaves.forEach((l, i) => {
+          if (animating.has(l)) return;
+          l.el.style.zIndex = i < flipped ? i + 1 : N - i + 1;
+        });
+      }
+
+      // only keep the leaves near the current page in the page (keeps it smooth)
+      function updateWindow() {
+        const show = single ? 4 : 3;
+        const load = show + 3;
+        leaves.forEach((l, i) => {
+          const d = i - flipped;
+          const near = d >= -show - 1 && d <= show;
+          l.el.style.display = near || animating.has(l) ? '' : 'none';
+          if (!l.loaded && d >= -load - 1 && d <= load) {
+            l.el.querySelectorAll('img[data-src]').forEach((img) => {
+              img.src = img.dataset.src;
+              img.removeAttribute('data-src');
+            });
+            l.loaded = true;
+          }
+        });
+      }
+
+      function applyShift() {
+        let shift = 0;
+        if (!single && zoom === 1) {
+          if (flipped === 0) shift = -25;                 // closed book: cover in the middle
+          else if (flipped === maxFlipped) shift = 25;    // back cover in the middle
+        }
+        book.style.transform = shift ? 'translateX(' + shift + '%)' : '';
+        blockLeft.style.opacity = flipped === 0 ? 0 : 1;
+        blockRight.style.opacity = !single && flipped === maxFlipped ? 0 : 1;
+      }
+
+      function visiblePages() {
+        if (single) return [flipped + 1];
+        const v = [];
+        if (flipped > 0) v.push(Math.min(flipped * 2, TOTAL));
+        if (flipped < maxFlipped) v.push(flipped * 2 + 1);
+        return v;
+      }
+
+      function updateUI() {
+        const v = visiblePages();
+        const label = v.length === 2 ? v[0] + '–' + v[1] : String(v[0]);
+        if (document.activeElement !== pageInput) pageInput.value = label;
+        slider.value = v[0];
+        slider.style.setProperty('--p', ((v[0] - 1) / (TOTAL - 1)) * 100 + '%');
+        btnPrev.disabled = flipped === 0;
+        btnNext.disabled = flipped === maxFlipped;
+        btnPrevSide.disabled = btnPrev.disabled;
+        btnNextSide.disabled = btnNext.disabled;
+
+        try { history.replaceState(null, '', '#' + v[0]); } catch (e) { /* ignore */ }
+
+        updateToc(v[v.length - 1]);
+
+        if (thumbsBuilt) {
+          thumbs.querySelectorAll('.thumb').forEach((t) => {
+            t.classList.toggle('active', v.includes(+t.dataset.page));
+          });
+          const a = thumbs.querySelector('.thumb.active');
+          if (a && app.classList.contains('side-open') && !thumbs.hidden) a.scrollIntoView({ block: 'nearest' });
+        }
+      }
+
+      function applyState() {
+        leaves.forEach((l, i) => l.el.classList.toggle('flipped', i < flipped));
+        setZ();
+        updateWindow();
+        applyShift();
+        updateUI();
+      }
+
+      // jump without any animation
+      function applyInstant() {
+        animating.clear();
+        book.classList.add('no-anim');
+        applyState();
+        void book.offsetWidth;             // flush styles so the change is not animated
+        book.classList.remove('no-anim');
+      }
+
+      /* ---------- Navigation ---------- */
+
+      function step(dir, force) {
+        const now = performance.now();
+        if (!force && now - lastFlip < DUR * 0.45) return;          // allow quick repeats, but not a mess
+        const target = flipped + dir;
+        if (target < 0 || target > maxFlipped) return;
+        lastFlip = now;
+
+        const leaf = leaves[dir > 0 ? flipped : target];  // the leaf that turns
+        animating.add(leaf);
+        leaf.el.style.zIndex = 2 * N + 10 - leaves.indexOf(leaf);   // on top while turning; earlier leaves above later ones
+        leaf.el.style.display = '';
+
+        flipped = target;
+        leaf.el.classList.toggle('flipped', dir > 0);
+        updateWindow();
+        applyShift();
+        updateUI();
+
+        setTimeout(() => {
+          animating.delete(leaf);
+          setZ();
+          updateWindow();
+        }, DUR + 40);
+      }
+
+      function goToPage(p) {
+        clearTimeout(flipTimer);
+        p = clamp(Math.round(p) || 1, 1, TOTAL);
+        flipped = clamp(single ? p - 1 : Math.floor(p / 2), 0, maxFlipped);
+        applyInstant();
+      }
+
+      // animated jump: the last few leaves visibly turn, so the book "flips" to the topic
+      function flipTo(p) {
+        clearTimeout(flipTimer);
+        p = clamp(Math.round(p) || 1, 1, TOTAL);
+        const target = clamp(single ? p - 1 : Math.floor(p / 2), 0, maxFlipped);
+        let diff = target - flipped;
+        if (!diff) return;
+        const dir = diff > 0 ? 1 : -1;
+        if (reduceMotion || zoom > 1) { goToPage(p); return; }
+        const MAXTURNS = 4;
+        if (Math.abs(diff) > MAXTURNS) {            // far away: hop close first, then turn
+          flipped = target - dir * MAXTURNS;
+          applyInstant();
+          diff = dir * MAXTURNS;
+        }
+        let left = Math.abs(diff);
+        const run = () => {
+          step(dir, true);
+          if (--left > 0) flipTimer = setTimeout(run, 150);
+        };
+        run();
+      }
+
+      /* ---------- Layout / sizing ---------- */
+
+      function layout() {
+        const r = stage.getBoundingClientRect();
+        const cs = getComputedStyle(stage);
+        const availW = r.width  - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+        const availH = r.height - parseFloat(cs.paddingTop)  - parseFloat(cs.paddingBottom);
+
+        const wantSingle = forced ? forced === 'single' : availW / availH < 1.1;
+        let rebuilt = false;
+
+        if (!leaves.length || wantSingle !== single) {
+          const page = leaves.length ? visiblePages()[0] : startPage;
+          single = wantSingle;
+          build();
+          flipped = clamp(single ? page - 1 : Math.floor(page / 2), 0, maxFlipped);
+          rebuilt = true;
+        }
+
+        const cols = single ? 1 : 2;
+        const ph = Math.max(140, Math.min(availH, availW / (cols * AR)));
+        const pw = ph * AR;
+
+        sizer.style.width  = pw * cols * zoom + 'px';
+        sizer.style.height = ph * zoom + 'px';
+        book.style.perspective = pw * cols * zoom * 4.2 + 'px';
+
+        stage.classList.toggle('zoomed', zoom > 1);
+        zoomLabel.textContent = Math.round(zoom * 100) + '%';
+        btnZoomOut.disabled = zoomIndex === 0;
+        btnZoomIn.disabled = zoomIndex === ZOOMS.length - 1;
+        btnView.title = single ? 'Switch to two-page view' : 'Switch to single-page view';
+
+        if (rebuilt) applyInstant();
+        else { applyShift(); }
+      }
+
+      function setZoom(i) {
+        zoomIndex = clamp(i, 0, ZOOMS.length - 1);
+        zoom = ZOOMS[zoomIndex];
+        book.classList.add('no-anim');
+        layout();
+        void book.offsetWidth;
+        book.classList.remove('no-anim');
+        // keep the book centred in the scroll area
+        stage.scrollLeft = (stage.scrollWidth - stage.clientWidth) / 2;
+        stage.scrollTop  = (stage.scrollHeight - stage.clientHeight) / 2;
+      }
+
+      // re-fit whenever the stage changes size (window resize, rotation, sidebar open/close)
+      let resizeRaf = 0;
+      const onResize = () => {
+        cancelAnimationFrame(resizeRaf);
+        resizeRaf = requestAnimationFrame(layout);
+      };
+      if ('ResizeObserver' in window) new ResizeObserver(onResize).observe(stage);
+      else window.addEventListener('resize', onResize);
+
+      /* ---------- Buttons ---------- */
+
+      btnPrev.addEventListener('click', () => step(-1));
+      btnNext.addEventListener('click', () => step(1));
+      btnPrevSide.addEventListener('click', () => step(-1));
+      btnNextSide.addEventListener('click', () => step(1));
+      btnZoomIn.addEventListener('click', () => setZoom(zoomIndex + 1));
+      btnZoomOut.addEventListener('click', () => setZoom(zoomIndex - 1));
+
+      btnView.addEventListener('click', () => {
+        forced = single ? 'double' : 'single';
+        layout();
+      });
+
+      if (!document.documentElement.requestFullscreen) btnFull.hidden = true;
+      btnFull.addEventListener('click', () => {
+        if (document.fullscreenElement) document.exitFullscreen();
+        else document.documentElement.requestFullscreen().catch(() => {});
+      });
+
+      slider.addEventListener('input', () => goToPage(+slider.value));
+
+      pageInput.addEventListener('focus', () => pageInput.select());
+      pageInput.addEventListener('blur', updateUI);
+      pageInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          const n = parseInt(pageInput.value, 10);
+          if (!isNaN(n)) goToPage(n);
+          pageInput.blur();
+        } else if (e.key === 'Escape') {
+          pageInput.blur();
+        }
+        e.stopPropagation();
+      });
+
+      /* ---------- Download PDF functionality ---------- */
+      btnDownload.addEventListener('click', () => {
+        // Direct link to the PDF version of the proceedings.
+        // Replace with the actual PDF file path if it exists in the project.
+        const pdfUrl = 'RSAE_2026_Conference_Proceedings.pdf';
+        
+        // Attempt to open the PDF for download.
+        // If the PDF doesn't exist, the browser will show an error page.
+        const link = document.createElement('a');
+        link.href = pdfUrl;
+        link.download = 'RSAE-2026-Conference-Proceedings.pdf';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      });
+
+      /* ---------- Thumbnail panel ---------- */
+
+      /* ----- Contents (TOC) ----- */
+
+      const CHEV = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
+
+      function buildToc() {
+        tocRows = [];
+        const walk = (items) => {
+          const ul = document.createElement('ul');
+          items.forEach((it) => {
+            const li = document.createElement('li');
+            const row = document.createElement('div');
+            row.className = 'toc-row';
+            const kids = it.c && it.c.length;
+
+            if (kids) {
+              const tg = document.createElement('button');
+              tg.type = 'button';
+              tg.className = 'toc-toggle';
+              tg.setAttribute('aria-label', 'Show or hide sub-topics of ' + it.t);
+              tg.innerHTML = CHEV;
+              tg.addEventListener('click', () => li.classList.toggle('open'));
+              row.appendChild(tg);
+            } else {
+              const gap = document.createElement('span');
+              gap.className = 'toc-gap';
+              row.appendChild(gap);
+            }
+
+            const a = document.createElement('button');
+            a.type = 'button';
+            a.className = 'toc-link';
+            const t = document.createElement('span'); t.className = 't'; t.textContent = it.t;
+            const n = document.createElement('span'); n.className = 'n'; n.textContent = it.p;
+            a.append(t, n);
+            a.addEventListener('click', () => {
+              if (kids) li.classList.add('open');
+              flipTo(it.p);
+              if (isMobile()) togglePanel(false);
+            });
+            row.appendChild(a);
+            li.appendChild(row);
+            tocRows.push({ page: it.p, row, li });
+            if (kids) li.appendChild(walk(it.c));
+            ul.appendChild(li);
+          });
+          return ul;
+        };
+        toc.appendChild(walk(TOC));
+      }
+
+      function updateToc(page) {
+        if (!tocRows.length) return;
+        let cur = null;
+        tocRows.forEach((r) => { if (r.page <= page) cur = r; });   // last topic that starts on/before this page
+        tocRows.forEach((r) => r.row.classList.toggle('active', r === cur));
+        if (!cur) return;
+        for (let p = cur.li.parentElement.closest('li'); p; p = p.parentElement.closest('li')) p.classList.add('open');
+        if (app.classList.contains('side-open') && !toc.hidden) cur.row.scrollIntoView({ block: 'nearest' });
+      }
+
+      function showTab(which) {
+        const isToc = which === 'toc';
+        toc.hidden = !isToc;
+        thumbs.hidden = isToc;
+        tabToc.classList.toggle('active', isToc);
+        tabPages.classList.toggle('active', !isToc);
+        tabToc.setAttribute('aria-selected', isToc);
+        tabPages.setAttribute('aria-selected', !isToc);
+        if (!isToc && !thumbsBuilt) buildThumbs();
+        if (isToc) updateToc(visiblePages().slice(-1)[0]); else updateUI();
+      }
+      tabToc.addEventListener('click', () => showTab('toc'));
+      tabPages.addEventListener('click', () => showTab('pages'));
+
+      function buildThumbs() {
+        const frag = document.createDocumentFragment();
+        for (let p = 1; p <= TOTAL; p++) {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'thumb';
+          b.dataset.page = p;
+          b.innerHTML =
+            '<img loading="lazy" decoding="async" alt="" src="' + THUMB_DIR + pad(p) + '.jpg">' +
+            '<span>' + p + '</span>';
+          frag.appendChild(b);
+        }
+        thumbs.appendChild(frag);
+        thumbsBuilt = true;
+        updateUI();
+      }
+
+      function togglePanel(open) {
+        const willOpen = open === undefined ? !app.classList.contains('side-open') : open;
+        app.classList.toggle('side-open', willOpen);
+        btnPanel.setAttribute('aria-expanded', willOpen);
+        if (willOpen) {
+          const active = (toc.hidden ? thumbs : toc).querySelector('.active');
+          if (active) active.scrollIntoView({ block: 'center' });
+        }
+        onResize();   // a docked sidebar changes the space available to the book
+      }
+
+      btnPanel.addEventListener('click', () => togglePanel());
+      backdrop.addEventListener('click', () => togglePanel(false));
+
+      thumbs.addEventListener('click', (e) => {
+        const t = e.target.closest('.thumb');
+        if (!t) return;
+        flipTo(+t.dataset.page);
+        if (isMobile()) togglePanel(false);
+      });
+
+      /* ---------- Keyboard ---------- */
+
+      document.addEventListener('keydown', (e) => {
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        switch (e.key) {
+          case 'ArrowRight': case 'PageDown': case ' ': e.preventDefault(); step(1); break;
+          case 'ArrowLeft':  case 'PageUp':               e.preventDefault(); step(-1); break;
+          case 'Home': goToPage(1); break;
+          case 'End':  goToPage(TOTAL); break;
+          case '+': case '=': setZoom(zoomIndex + 1); break;
+          case '-': case '_': setZoom(zoomIndex - 1); break;
+          case '0': setZoom(0); break;
+          case 'f': case 'F': btnFull.click(); break;
+          case 'Escape': if (isMobile()) togglePanel(false); break;
+        }
+      });
+
+      window.addEventListener('hashchange', () => {
+        const m = /#(\d+)/.exec(location.hash);
+        if (m && +m[1] !== visiblePages()[0]) goToPage(+m[1]);
+      });
+
+      /* ---------- Mouse / touch: click zones, swipe, drag-to-pan ---------- */
+
+      let down = null;
+
+      stage.addEventListener('pointerdown', (e) => {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        down = {
+          x: e.clientX, y: e.clientY,
+          sl: stage.scrollLeft, st: stage.scrollTop,
+          pan: false,
+        };
+        try { stage.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+      });
+
+      stage.addEventListener('pointermove', (e) => {
+        if (!down || zoom === 1 || e.pointerType !== 'mouse') return;
+        const dx = e.clientX - down.x, dy = e.clientY - down.y;
+        if (!down.pan && Math.abs(dx) + Math.abs(dy) > 4) {
+          down.pan = true;
+          stage.classList.add('panning');
+        }
+        if (down.pan) {
+          stage.scrollLeft = down.sl - dx;
+          stage.scrollTop = down.st - dy;
+        }
+      });
+
+      stage.addEventListener('pointercancel', () => {
+        down = null;
+        stage.classList.remove('panning');
+      });
+
+      stage.addEventListener('pointerup', (e) => {
+        if (!down) return;
+        const dx = e.clientX - down.x, dy = e.clientY - down.y;
+        down = null;
+        stage.classList.remove('panning');
+
+        // a tap on a small screen first just closes the thumbnail panel
+        if (app.classList.contains('side-open') && isMobile()) {
+          togglePanel(false);
+          return;
+        }
+        if (zoom > 1) return;                               // when zoomed, drag to look around
+
+        if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.5) {   // swipe
+          step(dx < 0 ? 1 : -1);
+          return;
+        }
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) {          // tap / click
+          const r = sizer.getBoundingClientRect();
+          let next;
+          if (flipped === 0) next = true;                    // closed book: any click opens it
+          else if (flipped === maxFlipped && !single) next = false;
+          else if (single) next = e.clientX > r.left + r.width * 0.35;
+          else next = e.clientX > r.left + r.width / 2;
+          step(next ? 1 : -1);
+        }
+      });
+
+      // never let the browser start an image drag / context-menu pan on the pages
+      stage.addEventListener('dragstart', (e) => e.preventDefault());
+
+      /* ---------- Go! ---------- */
+      // navigator starts open on desktop, closed on phones
+      if (!isMobile()) { app.classList.add('side-open'); btnPanel.setAttribute('aria-expanded', true); }
+      buildToc();
+      layout();
+    })();
+  </script>
+</body>
+</html>
